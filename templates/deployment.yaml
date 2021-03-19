@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+  labels:
+    app: gitlab
+  name: gitlab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitlab
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+      labels:
+        app: gitlab
+    spec:
+      containers:
+      - env:
+        - name: GITLAB_OMNIBUS_CONFIG
+          value: |
+            #external_url 'https://gitlab.ch'
+            #registry_external_url 'https://registry.ch'
+            gitlab_rails['smtp_enable'] = true
+            gitlab_rails['smtp_address'] = "mail.registry.ch"
+            gitlab_rails['smtp_port'] = 587
+            gitlab_rails['smtp_user_name'] = "gitlab-noreply@registry.ch"
+            gitlab_rails['smtp_password'] = "registry"
+            gitlab_rails['smtp_authentication'] = "login"
+            gitlab_rails['smtp_enable_starttls_auto'] = true
+            gitlab_rails['gitlab_email_from'] = 'gitlab-noreply@registry.ch'
+            gitlab_rails['gitlab_email_reply_to'] = 'registry@registry.com'
+            gitlab_rails['backup_keep_time'] = 600
+            gitlab_rails['backup_path'] = '/var/opt/gitlab/backups'
+            #gitlab_rails['backup_upload_connection'] = {
+            #  'provider'              => 'AWS',
+            #  'aws_access_key_id'     => 'admin',
+            #  'aws_secret_access_key' => 'registry',
+            #  'endpoint'              => 'http://minio.minio.svc.cluster.local:9000',
+            #  'path_style'            => true
+            #}
+            #gitlab_rails['backup_upload_remote_directory'] = 'gitlabbackups'
+        image: gitlab/gitlab-ce:latest
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "6Gi"
+            cpu: "4000m"
+        imagePullPolicy: ""
+        name: gitlab
+        ports:
+        - containerPort: 22
+        - containerPort: 80
+        - containerPort: 443
+        - containerPort: 5000
+        volumeMounts:
+        - mountPath: /etc/gitlab
+          name: gitlab-config
+        - mountPath: /var/log/gitlab
+          name: gitlab-logs
+        - mountPath: /var/opt/gitlab
+          name: gitlab-data
+        - mountPath: /var/opt/gitlab/backups
+          name: gitlab-backups
+        lifecycle:
+          postStart:
+            exec:
+              command: 
+                - /bin/bash
+                - -c
+                - echo "*/10 * * * * root gitlab-backup create SKIP=registry,artifacts" >> "/backup-crontab" && echo "*/10 * * * * root cp -r /etc/gitlab /var/opt/gitlab/backups" >> "/backup-crontab" && nohup go-crond "/backup-crontab" &
+      restartPolicy: Always
+      volumes:
+      - name: gitlab-config
+        persistentVolumeClaim:
+          claimName: gitlab-config
+      - name: gitlab-logs
+        persistentVolumeClaim:
+          claimName: gitlab-logs
+      - name: gitlab-data
+        persistentVolumeClaim:
+          claimName: gitlab-data
+      - name: gitlab-backups
+        persistentVolumeClaim:
+          claimName: gitlab-backups

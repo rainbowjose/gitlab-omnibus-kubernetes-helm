@@ -1,0 +1,55 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: gitlab-ingress
+  namespace: gitlab # namespace:cluster
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+    #ginx.ingress.kubernetes.io/affinity: cookie
+    #ginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    #ginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    #ginx.ingress.kubernetes.io/session-cookie-name: route
+    #ginx.ingress.kubernetes.io/configuration-snippet: |
+    # #client_max_body_size 100M;
+    # default_type  application/octet-stream;
+    # sendfile        on;
+    # #tcp_nopush     on;
+    # keepalive_timeout  1d;
+    # fastcgi_read_timeout 1d;
+    # #proxy_read_timeout 1d;
+    # #gzip  on;
+spec:
+  tls:
+   - hosts:
+     - gitlab.registry.ch
+     secretName: gitlab.registry.ch
+   - hosts:
+     - registry.registry.ch
+     secretName: registry.registry.ch
+   - hosts:
+     - ssh.registry.ch
+     secretName: ssh.registry.ch
+  rules:
+  - host: gitlab.registry.ch
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: gitlab
+          servicePort: 80
+  - host: registry.registry.ch
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: gitlab
+          servicePort: 5000
+  - host: ssh.registry.ch
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: gitlab
+          servicePort: 22
